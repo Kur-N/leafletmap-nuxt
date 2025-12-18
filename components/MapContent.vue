@@ -84,8 +84,8 @@ onMounted(async () => {
 	mapInstance.value = L.map(mapId, {
 		editable: true,
 		// maxBounds: indonesiaBounds,
-		minZoom: initialZoom,
-		maxZoom: 18,
+		// minZoom: initialZoom,
+		// maxZoom: 18,
 	}).setView(centerPoint, initialZoom);
 
 	delete L.Icon.Default.prototype._getIconUrl;
@@ -101,10 +101,6 @@ onMounted(async () => {
 
 	mapInstance.value.addLayer(drawnItems);
 
-	nextTick(() => {
-		attachDrawAndEditableListeners();
-		updateMapState();
-	});
 });
 
 onBeforeUnmount(() => {
