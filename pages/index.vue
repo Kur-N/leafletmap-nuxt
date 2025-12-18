@@ -1,9 +1,12 @@
+<script setup lang="ts">
+import MapContent from '../components/MapContent.vue';
+</script>
+
 <template>
 	<div>
-		<h1>My Map</h1>
-
+		<h1 style="padding-left: 14px;">My Map</h1>
         <ClientOnly>
-            <!-- Panggil component -->
+            <MapContent/>
             <template #fallback>
                 <p>Map is loading...</p>
             </template>
