@@ -1,7 +1,7 @@
 node_modules
 # Nuxt build output
 .output
-.nuxt
+.nuxt/
 dist
 
 # Node modules
