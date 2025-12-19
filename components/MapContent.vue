@@ -16,14 +16,12 @@ import "leaflet-editable";
 import * as turf from "@turf/turf";
 
 const mapId = "map";
+const storeGeoJsonData = ref([]);
 const drawMode = ref(null);
 const currentAction = ref("none");
 const currentEditingLayer = shallowRef(null);
 const originalEditingFeature = shallowRef(null);
 const newLayerCode = ref("");
-const currentZoom = ref(5);
-const debugMessage = ref("");
-const isZoomingToLayer = ref(false);
 
 const mapContainerRef = ref(null); // Ref untuk elemen div peta
 const isFullscreen = ref(false); // State untuk melacak status fullscreen
@@ -31,11 +29,93 @@ const isFullscreen = ref(false); // State untuk melacak status fullscreen
 const drawnItems = L.featureGroup();
 const mapInstance = shallowRef(null);
 const geoJsonLayer = shallowRef(null);
-const radiusLayer = shallowRef(null);
-const centerMarker = shallowRef(null);
 const currentDrawHandler = shallowRef(null);
 const currentLayerMapping = ref(new Map());
 
+const isInputMode = ref(false);
+
+const disableAllHandlers = () => {
+	if (!mapInstance.value) return;
+	if (currentDrawHandler.value) {
+		currentDrawHandler.value.disable();
+		currentDrawHandler.value = null;
+	}
+	drawnItems.eachLayer((layer) => {
+		if (layer.editing && layer.editing.enabled()) {
+			layer.disableEdit();
+			// layer.off("editable:vertex:dragend", updateStateFromEditedLayer);
+			// layer.off("editable:dragend", updateStateFromEditedLayer);
+			// layer.off("editable:vertex:deleted", updateStateFromEditedLayer);
+		}
+	});
+	// mapInstance.value.off('click', handleCustomClick);
+	// togglePopups(true);
+	currentEditingLayer.value = null;
+	originalEditingFeature.value = null;
+	currentAction.value = "none";
+	drawMode.value = null;
+	newLayerCode.value = "";
+};
+
+// FUNGSI DRAWING
+const startNewPolygonDraw = () => {
+	isInputMode.value = true;
+
+	disableAllHandlers();
+	drawMode.value = 'Polygon';
+	currentAction.value = "drawing";
+	let handlerClass = L.Draw.Polygon;
+	let options = {
+	    shapeOptions: { color: "#FF0000" },
+	    // allowIntersection: false,
+	    featureGroup: drawnItems
+	};
+	currentDrawHandler.value = new handlerClass(mapInstance.value, options);
+	currentDrawHandler.value.enable();
+};
+
+const handleDrawCreated = (e) => {
+	const layer = e.layer;
+	if (currentDrawHandler.value) {
+		currentDrawHandler.value.disable();
+	}
+
+	const fcIndex = selectedFcIndex.value;
+	if (fcIndex === -1) {
+		alert("Gagal menambahkan layer: Store Code tidak valid.");
+		disableAllHandlers();
+		return;
+	}
+	const fc = storeGeoJsonData.value[fcIndex];
+
+	const newFeature = createGeoJSONFeature(
+		layer,
+		"Polygon",
+		storeProps.storeCode,
+		storeProps
+	);
+	newFeature.properties = {
+		leaflet_id: layer._leaflet_id,
+	};
+
+	layer.feature = newFeature;
+	drawnItems.addLayer(layer);
+
+	storeGeoJsonData.value[fcIndex].features.push(newFeature);
+
+	currentLayerMapping.value.set(layer._leaflet_id, {
+		fcIndex: fcIndex,
+	});
+
+	// saveSingleFeature(newFeature, "ADD");
+
+	alert(
+		`Polygon baru berhasil ditambahkan dan disimpan.`
+	);
+	disableAllHandlers();
+};
+
+// FUNGSI HANDLE FULLSCREEN
 const toggleFullscreen = () => {
     const element = mapContainerRef.value;
 
@@ -130,7 +210,8 @@ onBeforeUnmount(() => {
 			>
 				<button
 					@click="toggleFullscreen"
-					class="fullscreen-control-custom"
+					class="control-custom"
+					style="top:80px"
 					:title="isFullscreen ? 'Keluar Fullscreen' : 'Lihat Fullscreen'"
 				>
 					<i
@@ -140,6 +221,17 @@ onBeforeUnmount(() => {
 						]"
 					></i>
 				</button>
+
+				<button
+					@click="startNewPolygonDraw"
+					class="control-custom"
+					style="top:116px"
+					title="Draw Polygon"
+				>
+					<i
+						class="mdi mdi-vector-polygon"
+					></i>
+				</button>
 			</div>
 		</div>
 	</div>
@@ -147,13 +239,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* 🛑 Styling Tombol Fullscreen Kustom */
-.fullscreen-control-custom {
+.control-custom {
 	/* Posisi absolut relatif terhadap #map-wrapper */
 	position: absolute;
 
-	/* 🛑 Posisi KIRI ATAS, tepat di bawah kontrol zoom Leaflet bawaan */
-	top: 80px; /* Sesuaikan nilai ini. Jika kontrol zoom bawaan tingginya 65px (termasuk margin), ini akan menempatkannya tepat di bawahnya. */
-	left: 10px;
+	left: 11px;
 
 	z-index: 600; /* Di atas elemen peta */
 
@@ -175,11 +265,6 @@ onBeforeUnmount(() => {
 	background-clip: padding-box;
 	border-radius: 2px;
 	padding-top: 1px;
-
-	/* box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);  */
-
-	/* Garis pemisah opsional di bagian atas jika ingin menempel dengan zoom control */
-	/* border-top: 1px solid #ccc;  */
 }
 
 .fullscreen-control-custom:hover {
@@ -190,6 +275,7 @@ onBeforeUnmount(() => {
 .fullscreen-control-custom i {
 	font-size: 22px;
 }
+
 #map-wrapper {
 	flex-grow: 1;
 	width: 100%;
